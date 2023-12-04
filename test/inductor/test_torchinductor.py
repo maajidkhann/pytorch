@@ -1130,7 +1130,6 @@ class CommonTemplate:
         packed = torch.cat([data, scales, offsets], dim=-1)
         self.common(fn, [packed])
 
-
     def test_expanded_reduction(self):
         if self.device == "cpu":
             raise unittest.SkipTest(
