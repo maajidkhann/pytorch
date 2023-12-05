@@ -22,6 +22,70 @@ namespace at::native {
 namespace {
 
 template <typename scalar_t>
+inline void _exp_reduce_sum_fusion_kernel(
+    scalar_t* a,
+    const int& size,
+    scalar_t* out,
+    scalar_t& val) {
+  auto vec_size = vec::Vectorized<scalar_t>::size();
+  auto vec_max = vec::Vectorized<scalar_t>(val);
+  scalar_t tmp_sum = 0;
+  auto vec_tmp_sum = vec::Vectorized<scalar_t>(tmp_sum);
+  for (long i = 0; i < vec_size * (size / vec_size); i += vec_size) {
+    auto tmp0 = vec::Vectorized<scalar_t>::loadu(a + i);
+    auto tmp1 = tmp0 - vec_max;
+    auto tmp2 = tmp1.exp_u20();
+    vec_tmp_sum += tmp2;
+    _store(out + i, tmp2);
+  }
+  tmp_sum = vec::vec_reduce_all<scalar_t>(
+      [](vec::Vectorized<scalar_t>& x, vec::Vectorized<scalar_t>& y) {
+        return x + y;
+      },
+      vec_tmp_sum);
+  for (long i = vec_size * (size / vec_size); i < size; i++) {
+    auto tmp0 = a[i];
+    auto tmp1 = tmp0 - val;
+    auto tmp2 = exp(tmp1);
+    tmp_sum += tmp2;
+    out[i] = tmp2;
+  }
+  val = tmp_sum;
+}
+
+template <typename scalar_t>
+inline void _mul_reduce_max_fusion_kernel(
+    const scalar_t* a,
+    const scalar_t& scale,
+    const int& size,
+    scalar_t* out,
+    scalar_t& max) {
+  auto vec_size = vec::Vectorized<scalar_t>::size();
+  auto vec_scale = vec::Vectorized<scalar_t>(scale);
+  scalar_t tmp_max = -std::numeric_limits<scalar_t>::infinity();
+  auto vec_tmp_max = vec::Vectorized<scalar_t>(tmp_max);
+  for (long i = 0; i < vec_size * (size / vec_size); i += vec_size) {
+    auto tmp0 = vec::Vectorized<scalar_t>::loadu(a + i);
+    auto tmp1 = tmp0 * vec_scale;
+    vec_tmp_max = vec::maximum(vec_tmp_max, tmp1);
+    _store(out + i, tmp1);
+  }
+  for (long i = vec_size * (size / vec_size); i < size; i++) {
+    auto tmp0 = a[i];
+    auto tmp1 = tmp0 * scale;
+    tmp_max = std::max(tmp_max, tmp1);
+    out[i] = tmp1;
+  }
+  max = std::max(
+      tmp_max,
+      vec::vec_reduce_all<scalar_t>(
+          [](vec::Vectorized<scalar_t>& x, vec::Vectorized<scalar_t>& y) {
+            return vec::maximum(x, y);
+          },
+          vec_tmp_max));
+}
+
+template <typename scalar_t>
 static inline scalar_t* conditional_data_ptr(scalar_t* ptr, scalar_t* ptr2) {
   TORCH_INTERNAL_ASSERT(ptr2 == nullptr);
   return ptr;
@@ -166,7 +230,7 @@ void cpu_flash_attention(
             kvBlockSize,
             qBlockSize,
             headSize,
-            scaling_factor,
+            static_cast<accum_t>(1),
             k_data + i * kStrideB + j * kStrideH +
                 n * kStrideN,
             kStrideN,
@@ -190,18 +254,12 @@ void cpu_flash_attention(
         accum_t tmp_max = 0, tmp_sum = 0, sum_old = 0, exp_tmp = 0;
         for (int64_t row = 0; row < qBlockSize; ++row) {
           sum_old = qk_sum_data[row];
-          // max per row
-          tmp_max = vec::reduce_all<accum_t>(
-            [](Vec& x, Vec& y) { return vec::maximum(x, y); },
-            qk_data + row * kvBlockSize, kvBlockSize);
+          // scale and max per row
+          _mul_reduce_max_fusion_kernel(qk_data + row * kvBlockSize, scaling_factor, kvBlockSize, qk_data + row * kvBlockSize, tmp_max);
           tmp_max = qk_max_data[row] > tmp_max ? qk_max_data[row] : tmp_max;
-          // qk <- exp(qk - max)
-          vec::map<accum_t>(
-            [tmp_max](Vec x) { return (x - Vec(tmp_max)).exp(); },
-            qk_data + row * kvBlockSize, qk_data + row * kvBlockSize, kvBlockSize);
-          // sum per row
-          tmp_sum = vec::reduce_all<accum_t>(
-            [](Vec& x, Vec& y) { return x + y; },  qk_data + row * kvBlockSize, kvBlockSize);
+          // qk <- exp(qk - max) and sum per row
+          tmp_sum = tmp_max;
+          _exp_reduce_sum_fusion_kernel(qk_data + row * kvBlockSize, kvBlockSize, qk_data + row * kvBlockSize, tmp_sum);
           // exp_tmp <- exp(max[row] - max)
           exp_tmp = std::exp(qk_max_data[row] - tmp_max);
           // sum[row] <- sum + exp_tmp * sum[row]
