@@ -498,11 +498,11 @@ class DeviceTypeTestBase(TestCase):
 
         # Instantiate the parametrized tests.
         for (
-            test,
+            test,  # noqa: B020
             test_suffix,
             param_kwargs,
             decorator_fn,
-        ) in parametrize_fn(  # noqa: B020
+        ) in parametrize_fn(
             test, generic_cls, cls
         ):
             test_suffix = "" if test_suffix == "" else "_" + test_suffix
