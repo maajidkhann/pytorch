@@ -885,7 +885,7 @@ static bool _scaled_mm_allowed_device() {
 //    - `out`: a reference to the output tensor
 //    - `amax`: a reference to the amax tensor of the output, only needed if the output is a float8 type and will be updated inplace
 
-std::tuple<Tensor&, Tensor&>
+Tensor&
 _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
           const std::optional<at::Tensor>& bias,
           std::optional<c10::ScalarType> out_dtype,
@@ -893,7 +893,7 @@ _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
           const std::optional<at::Tensor>& scale_b,
           const std::optional<at::Tensor>& scale_result,
           bool use_fast_accum,
-          Tensor& out, Tensor& amax) {
+          Tensor& out) {
   // Check sizes
   bool allowed_device = _scaled_mm_allowed_device();
   TORCH_CHECK(allowed_device, "torch._scaled_mm is only supported on CUDA devices with compute capability >= 9.0 or 8.9, or ROCm MI300+");
@@ -922,7 +922,6 @@ _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
        mat2.sizes()[1], " must be divisible by 16");
   // Check types
   TORCH_CHECK(!out_dtype || *out_dtype == out.scalar_type(), "out_dtype must match output matrix type");
-  TORCH_CHECK(amax.scalar_type() == kFloat, "amax must be a float scalar");
   TORCH_CHECK(isFloat8Type(mat1.scalar_type()), "Expected mat1 to be Float8 matrix got ", mat1.scalar_type());
   TORCH_CHECK(isFloat8Type(mat2.scalar_type()), "Expected mat2 to be Float8 matrix got ", mat2.scalar_type());
   // Type restrictions imposed by CuBLASLt as of CUDA-12.1
@@ -943,6 +942,10 @@ _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
     auto scale_a_ = scale_a.value_or(Tensor());
     auto scale_b_ = scale_b.value_or(Tensor());
     auto scale_result_ = scale_result.value_or(Tensor());
+
+    // Some scaled_gemms require an amax to populate lets, we create one here
+    Tensor amax = at::empty({0}, mat1.options().dtype(ScalarType::Float));
+
     TensorArg targs[]{{out, "out", 0}, {amax, "amax", 1}, {mat1, "mat1", 2}, {mat2, "mat2", 3},
                       {bias_, "bias", 4}, {scale_a_, "scale_a", 5}, {scale_b_, "scale_b", 6},
                       {scale_result_, "scale_result", 7}};
@@ -952,7 +955,6 @@ _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
   IntArrayRef mat1_sizes = mat1.sizes();
   IntArrayRef mat2_sizes = mat2.sizes();
   at::native::resize_output(out, {mat1_sizes[0], mat2_sizes[1]});
-  at::native::resize_output(amax, {});
 
   cublasCommonArgs args(mat1, mat2, out);
   const auto out_dtype_ = args.result->scalar_type();
@@ -1069,15 +1071,10 @@ _scaled_mm_out_cuda(const Tensor& mat1, const Tensor& mat2,
         use_fast_accum);
   }
 
-#if defined(USE_ROCM) && ROCM_VERSION >= 60000 && ROCM_VERSION < 60200
-  // ROCm's hipBLASLt does not support amax before 6.2, so calculate separately
-  amax = at::max(at::abs(out.to(kFloat)));
-#endif
-
-  return {out, amax};
+  return out;
 }
 
-std::tuple<Tensor, Tensor>
+Tensor
 _scaled_mm_cuda(const Tensor& mat_a, const Tensor& mat_b,
           const std::optional<at::Tensor>& bias,
           std::optional<c10::ScalarType> out_dtype,
@@ -1087,8 +1084,7 @@ _scaled_mm_cuda(const Tensor& mat_a, const Tensor& mat_b,
           bool use_fast_accum) {
   const auto out_dtype_ = out_dtype.value_or(mat_a.scalar_type());
   Tensor out = at::empty({0}, mat_a.options().dtype(out_dtype_));
-  Tensor amax = at::empty({0}, mat_a.options().dtype(ScalarType::Float));
-  return _scaled_mm_out_cuda(mat_a, mat_b, bias, out_dtype, scale_a, scale_b, scale_result, use_fast_accum, out, amax);
+  return _scaled_mm_out_cuda(mat_a, mat_b, bias, out_dtype, scale_a, scale_b, scale_result, use_fast_accum, out);
 }
 
 } // namespace at::native
