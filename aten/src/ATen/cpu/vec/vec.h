@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(CPU_CAPABILITY_AVX512)
+#if defined(CPU_CAPABILITY_AVX512) || defined(CPU_CAPABILITY_SVE512)
 #include <ATen/cpu/vec/vec512/vec512.h>
 #elif defined(CPU_CAPABILITY_SVE128)
 #include <ATen/cpu/vec/vec128/vec128.h>

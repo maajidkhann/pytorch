@@ -16,7 +16,7 @@
 #include <float.h>
 #include <algorithm>
 
-#if defined(CPU_CAPABILITY_AVX512)
+#if defined(CPU_CAPABILITY_AVX512) || defined(CPU_CAPABILITY_SVE512)
 #define CACHE_LINE 64
 #elif !defined(CPU_CAPABILITY_SVE128)
 #define CACHE_LINE 32

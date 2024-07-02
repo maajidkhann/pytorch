@@ -112,6 +112,8 @@ std::string get_cpu_capability() {
       return "SVE128";
     case native::CPUCapability::SVE256:
       return "SVE256";
+    case native::CPUCapability::SVE512:
+      return "SVE512";
 #else
     case native::CPUCapability::DEFAULT:
       return "NO AVX";
