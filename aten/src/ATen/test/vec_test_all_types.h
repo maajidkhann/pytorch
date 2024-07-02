@@ -18,8 +18,10 @@
 
 #if defined(CPU_CAPABILITY_AVX512)
 #define CACHE_LINE 64
-#else
+#elif !defined(CPU_CAPABILITY_SVE128)
 #define CACHE_LINE 32
+#else
+#define CACHE_LINE 16
 #endif
 
 #if defined(__GNUC__)

@@ -99,8 +99,10 @@ inline void vectorized_outer_reduction(char** data, int64_t inner_stride, int64_
   // reduce down each column of 4 * Vec::size() elements (128 or 256 bytes)
 #if defined(CPU_CAPABILITY_AVX512)
   int64_t outer_stride[2] = { 256, 256 };
-#else
+#elif !defined(CPU_CAPABILITY_SVE128)
   int64_t outer_stride[2] = { 128, 128 };
+#else
+  int64_t outer_stride[2] = { 64, 64 };
 #endif
   UNARY_OUTER_LOOP(data, outer_stride, size1 / (4 * Vec::size()), [&] {
     vectorized_reduction(data, size0, inner_stride, op, vop, /*reduce=*/false);
