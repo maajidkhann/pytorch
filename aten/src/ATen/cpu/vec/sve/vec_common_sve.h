@@ -8,15 +8,19 @@
 #include <ATen/cpu/vec/vec_base.h>
 #include <ATen/cpu/vec/sve/sve_helper.h>
 
-#if defined(CPU_CAPABILITY_SVE)
 #include <ATen/cpu/vec/sve/vec_float.h>
 #include <ATen/cpu/vec/sve/vec_double.h>
 #include <ATen/cpu/vec/sve/vec_int.h>
 #include <ATen/cpu/vec/sve/vec_qint.h>
-#endif
+#include <ATen/cpu/vec/sve/vec_bfloat16.h>
 
-namespace at {
-namespace vec {
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <ostream>
+
+namespace at::vec {
 // Note [CPU_CAPABILITY namespace]
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // This header, and all of its subheaders, will be compiled with
@@ -26,6 +30,34 @@ namespace vec {
 // namespace` which changes the name mangling, but can still be
 // accessed as `at::vec`.
 inline namespace CPU_CAPABILITY {
+
+inline std::ostream& operator<<(std::ostream& stream, const c10::qint32& val) {
+  stream << val.val_;
+  return stream;
+}
+inline std::ostream& operator<<(std::ostream& stream, const c10::qint8& val) {
+  stream << static_cast<int>(val.val_);
+  return stream;
+}
+inline std::ostream& operator<<(std::ostream& stream, const c10::quint8& val) {
+  stream << static_cast<unsigned int>(val.val_);
+  return stream;
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const Vectorized<T>& vec) {
+  T buf[Vectorized<T>::size()];
+  vec.store(buf);
+  stream << "vec[";
+  for (int i = 0; i != Vectorized<T>::size(); i++) {
+    if (i != 0) {
+      stream << ", ";
+    }
+    stream << buf[i];
+  }
+  stream << "]";
+  return stream;
+}
 
 #if defined(CPU_CAPABILITY_SVE)
 
@@ -171,6 +203,56 @@ inline deinterleave2<float>(const Vectorized<float>& a, const Vectorized<float>&
                         Vectorized<float>(svuzp2_f32(a, b)));
 }
 
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FLIP ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+template<>
+inline Vectorized<float> flip(const Vectorized<float> & v) {
+  svbool_t pg = svptrue_b32();
+  svuint32_t idx = svindex_u32(0, 1);
+  idx = svrevb_u32_x(pg, idx);
+  return Vectorized<float>(svtbl(v, idx));
+}
+
+template<>
+inline Vectorized<double> flip(const Vectorized<double> & v) {
+  svbool_t pg = svptrue_b64();
+  svuint64_t idx = svindex_u64(0, 1);
+  idx = svrevb_u64_x(pg, idx);
+  return Vectorized<double>(svtbl(v, idx));
+}
+
+template<>
+inline Vectorized<int64_t> flip(const Vectorized<int64_t> & v) {
+  svbool_t pg = svptrue_b64();
+  svuint64_t idx = svindex_u64(0, 1);
+  idx = svrevb_u64_x(pg, idx);
+  return Vectorized<int64_t>(svtbl(v, idx));
+}
+
+template<>
+inline Vectorized<int32_t> flip(const Vectorized<int32_t> & v) {
+  svbool_t pg = svptrue_b32();
+  svuint32_t idx = svindex_u32(0, 1);
+  idx = svrevb_u32_x(pg, idx);
+  return Vectorized<int32_t>(svtbl(v, idx));
+}
+
+template<>
+inline Vectorized<int16_t> flip(const Vectorized<int16_t> & v) {
+  svbool_t pg = svptrue_b16();
+  svuint16_t idx = svindex_u16(0, 1);
+  idx = svrevb_u16_x(pg, idx);
+  return Vectorized<int16_t>(svtbl(v, idx));
+}
+
+template<>
+inline Vectorized<int8_t> flip(const Vectorized<int8_t> & v) {
+  svbool_t pg = svptrue_b8();
+  svuint8_t idx = svindex_u8(0, 1);
+  idx = svreinterpret_u8(svrevb_s32_x(pg, svreinterpret_s32_u8(idx)));
+  return Vectorized<int8_t>(svtbl(v, idx));
+}
+
 #endif // defined(CPU_CAPABILITY_SVE)
 
-}}}
+}}

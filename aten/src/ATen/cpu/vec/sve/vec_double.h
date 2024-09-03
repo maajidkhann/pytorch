@@ -3,6 +3,7 @@
 #include <ATen/cpu/vec/intrinsics.h>
 #include <ATen/cpu/vec/vec_base.h>
 #include <ATen/cpu/vec/sve/sve_helper.h>
+#include <c10/util/irange.h>
 #if defined(CPU_CAPABILITY_SVE)
 #include <sleef.h>
 #endif
@@ -12,8 +13,7 @@
 #else
 #define USE_SLEEF(sleef_code, non_sleef_code) non_sleef_code
 #endif
-namespace at {
-namespace vec {
+namespace at::vec {
 // Note [CPU_CAPABILITY namespace]
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // This header, and all of its subheaders, will be compiled with
@@ -472,7 +472,9 @@ Vectorized<double> inline Vectorized<double>::le(const Vectorized<double>& other
 template <>
 inline void convert(const double* src, double* dst, int64_t n) {
   const int64_t fraction = n % Vectorized<double>::size();
+#ifndef __msvc_cl__
 #pragma unroll
+#endif
   for (int64_t i = 0; i < n - fraction; i += Vectorized<double>::size()) {
     svst1_f64(ptrue, dst + i, svldnt1_f64(ptrue, src + i));
   }
@@ -490,4 +492,4 @@ Vectorized<double> inline fmadd(const Vectorized<double>& a, const Vectorized<do
 
 #endif // defined(CPU_CAPABILITY_SVE)
 
-}}}
+}}

@@ -104,8 +104,28 @@ SET(SVE_CODE "
   }
 ")
 
-# Test code for SVE256 support
+# Test code for SVE128, SVE256, and SVE512 support
+SET(SVE128_CODE "
+  #include <arm_sve.h>
+  int main()
+  {
+    svfloat64_t a;
+    a = svdup_n_f64(0);
+    return 0;
+  }
+")
+
 SET(SVE256_CODE "
+  #include <arm_sve.h>
+  int main()
+  {
+    svfloat64_t a;
+    a = svdup_n_f64(0);
+    return 0;
+  }
+")
+
+SET(SVE512_CODE "
   #include <arm_sve.h>
   int main()
   {
@@ -150,15 +170,17 @@ MACRO(CHECK_SVE lang type flags)
   MARK_AS_ADVANCED(${lang}_${type}_FOUND ${lang}_${type}_FLAGS)
 ENDMACRO()
 
-# Check for SVE256 vector length
+# Check for different SVE vector lengths
+CHECK_SVE(CXX "SVE128" "-march=armv8-a+sve -msve-vector-bits=128")
 CHECK_SVE(CXX "SVE256" "-march=armv8-a+sve -msve-vector-bits=256")
+CHECK_SVE(CXX "SVE512" "-march=armv8-a+sve -msve-vector-bits=512")
 
-# If SVE256 support is not found, set CXX_SVE_FOUND to FALSE and notify the user
-if(NOT CXX_SVE256_FOUND)
+# If SVE128 and SVE256 and SVE512 support is not found, set CXX_SVE_FOUND to FALSE and notify the user
+if(NOT CXX_SVE128_FOUND AND NOT CXX_SVE256_FOUND AND NOT CXX_SVE512_FOUND)
   set(CXX_SVE_FOUND FALSE CACHE BOOL "SVE not available on host")
   message(STATUS "No SVE processor on this machine.")
 else()
-  # If SVE256 support is found, set CXX_SVE_FOUND to TRUE and notify the user
+  # Set CXX_SVE_FOUND to TRUE and notify the user
   set(CXX_SVE_FOUND TRUE CACHE BOOL "SVE available on host")
   message(STATUS "SVE support detected.")
 endif()
