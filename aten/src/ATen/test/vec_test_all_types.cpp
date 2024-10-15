@@ -370,11 +370,20 @@ namespace {
     }
     TYPED_TEST(Hyperbolic, Tanh) {
         using vec = TypeParam;
+// NOTE: Because SVE uses ACL logic, the precision changes.
+#if defined(CPU_CAPABILITY_SVE)
+        test_unary<vec>(
+            NAME_INFO(tanH),
+            RESOLVE_OVERLOAD(std::tanh),
+            [](vec v) { return v.tanh(); },
+            createDefaultUnaryTestCase<vec>(TestSeed(), false, true, 0));
+#else
         test_unary<vec>(
             NAME_INFO(tanH),
             RESOLVE_OVERLOAD(std::tanh),
             [](vec v) { return v.tanh(); },
             createDefaultUnaryTestCase<vec>(TestSeed()));
+#endif
     }
     TYPED_TEST(Hyperbolic, Sinh) {
         using vec = TypeParam;
@@ -491,11 +500,26 @@ namespace {
     }
     TYPED_TEST(Exponents, Exp) {
         using vec = TypeParam;
+// NOTE: Because SVE uses Eigen logic, the precision changes.
+#if defined(CPU_CAPABILITY_SVE)
+        using UVT = UvalueType<TypeParam>;
+        auto test_case =
+            TestingCase<vec>::getBuilder()
+            .addDomain(CheckWithinDomains<UVT>{ { {-88.3762626647949, 88.3762626647950}}, true, getDefaultTolerance<UVT>()})
+            .setTrialCount(65536)
+            .setTestSeed(TestSeed());
+        test_unary<vec>(
+            NAME_INFO(exp),
+            RESOLVE_OVERLOAD(std::exp),
+            [](vec v) { return v.exp(); },
+            test_case);
+#else
         test_unary<vec>(
             NAME_INFO(exp),
             RESOLVE_OVERLOAD(std::exp),
             [](const vec& v) { return v.exp(); },
             createDefaultUnaryTestCase<vec>(TestSeed()));
+#endif
     }
     TYPED_TEST(Exponents, Expm1) {
         using vec = TypeParam;

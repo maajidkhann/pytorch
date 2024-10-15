@@ -191,7 +191,7 @@ public:
     return map(calc_erfinv);
   }
   Vectorized<float> exp() const {
-    return USE_SLEEF(Vectorized<float>(Sleef_expfx_u10sve(values)),map(std::exp));
+    return svexp_f32_x(ptrue, values);
   }
   Vectorized<float> exp2() const {
     return USE_SLEEF(Vectorized<float>(Sleef_exp2fx_u10sve(values)),map(std::exp2));
@@ -316,7 +316,17 @@ public:
     return USE_SLEEF(Vectorized<float>(Sleef_tanfx_u10sve(values)),map(std::tan));
   }
   Vectorized<float> tanh() const {
-    return USE_SLEEF(Vectorized<float>(Sleef_tanhfx_u10sve(values)),map(std::tanh));
+    const svfloat32_t CONST_1        = svdup_n_f32(1.f);
+    const svfloat32_t CONST_2        = svdup_n_f32(2.f);
+    const svfloat32_t CONST_MIN_TANH = svdup_n_f32(-10.f);
+    const svfloat32_t CONST_MAX_TANH = svdup_n_f32(10.f);
+
+    svfloat32_t x     = svmin_f32_x(ptrue, svmax_f32_x(ptrue, values, CONST_MIN_TANH), CONST_MAX_TANH);
+    svfloat32_t exp2x = svexp_f32_x(ptrue, svmul_f32_x(ptrue, CONST_2, x));
+    svfloat32_t num   = svsub_f32_x(ptrue, exp2x, CONST_1);
+    svfloat32_t den   = svadd_f32_x(ptrue, exp2x, CONST_1);
+    svfloat32_t tanh  = svdiv_f32_x(ptrue, num, den);
+    return tanh;
   }
   Vectorized<float> trunc() const {
     return svrintz_f32_x(ptrue, values);
