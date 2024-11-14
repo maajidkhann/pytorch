@@ -60,38 +60,42 @@ typedef svfloat64_t vls_float64_t __attribute__((arm_sve_vector_bits(VECTOR_WIDT
 #define ALL_F64_TRUE_MASK svreinterpret_f64_s64(ALL_S64_TRUE_MASK)
 #define ALL_F64_FALSE_MASK svreinterpret_f64_s64(ALL_S64_FALSE_MASK)
 
-// Add an additional macro to handle the token pasting
-#define CONCAT(a, b, c) a##b##c
-#define IMPLEMENT_EXP_SVE(bit) \
-    static inline CONCAT(svfloat, bit, _t) svexp_f##bit##_x(svbool_t pg, CONCAT(svfloat, bit, _t) x) { \
-        constexpr CONCAT(float, bit, _t) cst_exp_hi = 88.3762626647950; \
-        constexpr CONCAT(float, bit, _t) cst_exp_lo = -88.3762626647949; \
-        constexpr CONCAT(float, bit, _t) cst_cephes_LOG2EF = 1.44269504088896341; \
-        constexpr CONCAT(float, bit, _t) cst_nln2 = -0.6931471805599453; \
-        const CONCAT(svfloat, bit, _t) cst_exp_p0 = svdup_n_f##bit(1.9875691500e-4); \
-        const CONCAT(svfloat, bit, _t) cst_exp_p1 = svdup_n_f##bit(1.3981999507e-3); \
-        const CONCAT(svfloat, bit, _t) cst_exp_p2 = svdup_n_f##bit(8.3334519073e-3); \
-        const CONCAT(svfloat, bit, _t) cst_exp_p3 = svdup_n_f##bit(4.1665795894e-2); \
-        const CONCAT(svfloat, bit, _t) cst_exp_p4 = svdup_n_f##bit(1.6666665459e-1); \
-        const CONCAT(svfloat, bit, _t) cst_exp_p5 = svdup_n_f##bit(5.0000001201e-1); \
-        const CONCAT(svfloat, bit, _t) c = svminnm_n_f##bit##_x( \
-            pg, svmaxnm_n_f##bit##_x(pg, x, cst_exp_lo), cst_exp_hi); \
-        const CONCAT(svfloat, bit, _t) m = svrinti_f##bit##_x(pg, svmul_n_f##bit##_x(pg, c, cst_cephes_LOG2EF)); \
-        const CONCAT(svfloat, bit, _t) r = svmla_n_f##bit##_x(pg, c, m, cst_nln2); \
-        const CONCAT(svfloat, bit, _t) r2 = svmul_f##bit##_x(pg, r, r); \
-        const CONCAT(svfloat, bit, _t) r3 = svmul_f##bit##_x(pg, r2, r); \
-        CONCAT(svfloat, bit, _t) y = svmla_f##bit##_x(pg, cst_exp_p1, cst_exp_p0, r); \
-        y = svmla_f##bit##_x(pg, cst_exp_p2, y, r); \
-        CONCAT(svfloat, bit, _t) y1 = svmla_f##bit##_x(pg, cst_exp_p4, cst_exp_p3, r); \
-        y1 = svmla_f##bit##_x(pg, cst_exp_p5, y1, r); \
-        y = svmla_f##bit##_x(pg, y1, y, r3); \
-        const CONCAT(svfloat, bit, _t) y2 = svadd_n_f##bit##_x(pg, r, 1.0); \
-        y = svmla_f##bit##_x(pg, y2, y, r2); \
-        return svmax_f##bit##_x(pg, svscale_f##bit##_x(pg, y, svcvt_s##bit##_f##bit##_x(pg, m)), x); \
-    }
+  inline svfloat32_t svexp_f32_x(svbool_t pg, svfloat32_t src) {
+    // Constants
+        const auto log2_e = svdup_n_f32(1.0f / std::log(2.0f));
+        //const auto ln2 = svdup_n_f32(0.6931473921f);
+        //const auto half_ln2_sq = svdup_n_f32(0.2413862043f);
 
-// Now invoke the macro for 32-bit and 16-bit versions
-IMPLEMENT_EXP_SVE(32)
-IMPLEMENT_EXP_SVE(16)
+        const auto ln2 = svdup_n_f32(0.6931471805599453f);
+        const auto half_ln2_sq = svdup_n_f32(0.2413862295f); // More precise value
+
+        const auto not_mask17 = svdup_n_u32(~((1u << 17) - 1));
+        const auto one = svdup_n_f32(1.0f);
+        const auto zero = svdup_n_f32(0.0f);
+        const auto inf = svdup_n_f32(std::numeric_limits<float>::infinity());
+        const auto max_input = svdup_n_f32(88.37f);                             // Approximately ln(2^127.5)
+        const auto min_input = svdup_n_f32(-86.64f);                            // Approximately ln(2^-125)
+
+        // Algorithm starts here
+        svfloat32_t t0 = svmul_f32_z(pg, src, log2_e);                          // y = x * log2(e)
+        svfloat32_t t1 = svrintm_f32_z(pg, t0);                                 // rount to int (float)
+        svint32_t t2 = svcvt_s32_f32_z(pg, t1);                                 // n
+
+        t1 = svsub_f32_z(pg, t0, t1);                                           // a = y - floor(y)
+        t1 = svadd_f32_z(pg, t1, one);                                          // b = a + 1
+
+        svuint32_t t3 = svlsr_n_u32_z(pg, svreinterpret_u32_f32(t1), 17);       // v = b >> 17 (u32)
+        svfloat32_t t4 = svexpa_f32(t3);                                        // c = fexpa(v)
+        t4 = svscale_f32_z(pg, t4, t2);                                         // fexpa(v) * 2^(n)
+
+        // and_(t2.d, t1.d, not_mask17.d)
+        svfloat32_t t5 = svreinterpret_f32_u32(svand_u32_z(pg, svreinterpret_u32_f32(t1), not_mask17));
+        t5 = svsub_f32_z(pg, t1, t5);                                           // z
+        t0 = svmla_f32_z(pg, ln2, t5, half_ln2_sq);                             // ln2 + half_ln2_sq * z
+        t0 = svmla_f32_z(pg, one, t5, t0);                                      // 1 + (ln2 * z) + (half_ln2_sq * z * z)
+        t0 = svmul_f32_z(pg, t0, t4);                                           // Final result
+
+        return t0;
+    }
 
 #endif // defined(CPU_CAPABILITY_SVE)
