@@ -1130,7 +1130,6 @@ namespace {
     }
 // NOTE: In this test, blend<mask> is not required to implement SVE Vectorized::set.
 // so, this test is disabled for SVE.
-#if !defined(CPU_CAPABILITY_SVE)
     TYPED_TEST(BitwiseFloatsAdditional2, Blend) {
         using vec = TypeParam;
         using VT = ValueType<TypeParam>;
@@ -1144,7 +1143,6 @@ namespace {
         constexpr int64_t power_sets = 1LL << (vec::size());
         test_blend<vec, VT, power_sets - 1>(expected_val, a, b);
     }
-#endif
     template<typename vec, typename VT>
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
     void test_set(VT expected_val[vec::size()], VT a[vec::size()], VT b[vec::size()], int64_t count){

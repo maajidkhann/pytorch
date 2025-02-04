@@ -43,7 +43,40 @@ public:                                                                         
   }                                                                                                     \
   operator svint##bit##_t() const {                                                                     \
     return values;                                                                                      \
-  }                                                                                                     \
+  }                                                                                                   \
+  template <uint64_t mask, typename T> \
+static Vectorized<T> blend(const Vectorized<T>& a, const Vectorized<T>& b) { \
+    int VL = -1; \
+    if constexpr (std::is_same_v<T, int8_t>) { \
+        VL = svcntb();  \
+    } else if constexpr (std::is_same_v<T, int16_t>) { \
+        VL = svcntb();  \
+    } else if constexpr (std::is_same_v<T, int32_t>) { \
+        VL = svcntw(); \
+    } else if constexpr (std::is_same_v<T, int64_t>) { \
+        VL = svcntw();  \
+    }  else { \
+       std::cout << "@@@@@@@@ No@@@@@@@@@" << std::endl; \
+   } \
+   std::cout << "VL: " << VL << std::endl; \
+   T flag_arr[VL]; \
+   for (int i = 0; i < VL; i++) { \
+     flag_arr[i] = (i < 64 && (mask & (1ULL << i))) ? 1 : 0; \
+   } \
+if constexpr (std::is_same_v<T, int8_t>) { \
+svbool_t blend_mask = svcmpne_n_s8(svptrue_b8(), svld1_s8(svptrue_b8(), flag_arr), 0); \
+return Vectorized<T>(svsel_s8(blend_mask, b.values, a.values)); \
+} else if constexpr (std::is_same_v<T, int16_t>) { \
+svbool_t blend_mask = svcmpne_n_s16(svptrue_b16(), svld1_s16(svptrue_b16(), flag_arr), 0); \
+return Vectorized<T>(svsel_s16(blend_mask, b.values, a.values)); \
+} else if constexpr (std::is_same_v<T, int32_t>) { \
+svbool_t blend_mask = svcmpne_n_s32(svptrue_b32(), svld1_s32(svptrue_b32(), flag_arr), 0); \
+return Vectorized<T>(svsel_s32(blend_mask, b.values, a.values)); \
+} else if constexpr (std::is_same_v<T, int64_t>) { \
+svbool_t blend_mask = svcmpne_n_s64(svptrue_b64(), svld1_s64(svptrue_b64(), flag_arr), 0); \
+return Vectorized<T>(svsel_s64(blend_mask, b.values, a.values)); \
+} \
+} \                                                         
   static Vectorized<int##bit##_t> blendv(const Vectorized<int##bit##_t>& a,                             \
                                         const Vectorized<int##bit##_t>& b,                             \
                                         const Vectorized<int##bit##_t>& mask_) {                       \
