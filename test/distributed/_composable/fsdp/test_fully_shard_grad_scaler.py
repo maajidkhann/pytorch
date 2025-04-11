@@ -16,7 +16,6 @@ from torch.testing._internal.common_fsdp import FSDPTest, get_devtype, MLP
 from torch.testing._internal.common_utils import run_tests
 
 
-
 device_type = torch.device(get_devtype())
 
 
@@ -63,7 +62,7 @@ class TestFullyShardGradientScaler(FSDPTest):
             input = torch.randn((2,), device=device_type)
 
         loss = model(input).sum()
-        scaler = GradScaler(init_scale=2.0, enabled=True)
+        scaler = GradScaler(init_scale=2.0, enabled=True, device=device_type.type)
         opt = torch.optim.Adam(model.parameters(), lr=1e-2)
         scaler.scale(loss).backward()
         inv_scale = scaler._scale.double().reciprocal().float()
