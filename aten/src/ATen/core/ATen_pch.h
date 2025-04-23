@@ -147,7 +147,6 @@
 #include <c10/util/quint8.h>
 #include <c10/util/safe_numerics.h>
 #include <c10/util/string_utils.h>
-#include <c10/util/string_view.h>
 #include <c10/util/typeid.h>
 
 #include <ATen/StorageUtils.h>
