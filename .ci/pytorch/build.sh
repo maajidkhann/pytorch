@@ -14,6 +14,7 @@ echo "\$@" >> /tmp/sccache_nvcc_stuff/nvcc_args.txt
 for arg in "\$@"; do
   case "\$arg" in
     /tmp/sccache_nvcc*)
+      echo "\$arg"
       cp "\$arg" /tmp/sccache_nvcc_stuff
       ;;
     *)
