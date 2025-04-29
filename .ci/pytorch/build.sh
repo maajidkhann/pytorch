@@ -7,7 +7,7 @@ set -ex -o pipefail
 # need to set it yourself.
 
 mkdir -p /tmp/sccache_nvcc_stuff
-sudo tee /opt/cache/bin/nvcc > /dev/null <<'EOF'
+sudo tee /opt/cache/bin/nvcc > /dev/null <<EOF
 #!/bin/sh
 echo "\$@" > /tmp/sccache_nvcc_stuff/nvcc_args.txt
 for arg in "$@"; do
