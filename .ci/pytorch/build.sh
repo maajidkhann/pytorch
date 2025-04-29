@@ -7,6 +7,7 @@ set -ex -o pipefail
 # need to set it yourself.
 
 mkdir -p /tmp/sccache_nvcc_stuff
+which nvcc
 sudo tee /opt/cache/bin/nvcc > /dev/null <<EOF
 #!/bin/sh
 echo "\$@" > /tmp/sccache_nvcc_stuff/nvcc_args.txt
@@ -26,6 +27,8 @@ fi
 EOF
 sudo chmod +x /opt/cache/bin/nvcc
 # sudo mv /opt/cache/bin/nvcc /opt/cache/lib/
+
+cat /opt/cache/bin/nvcc
 which nvcc
 nvcc --version
 
