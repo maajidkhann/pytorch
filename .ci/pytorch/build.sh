@@ -11,13 +11,13 @@ which nvcc
 sudo tee /opt/cache/bin/nvcc > /dev/null <<EOF
 #!/bin/sh
 echo "\$@" >> /tmp/sccache_nvcc_stuff/nvcc_args.txt
-for arg in "\$@"; do
-  case "\$arg" in
-    /tmp/sccache_nvcc*)
-      cp "\$arg" /tmp/sccache_nvcc_stuff
-      ;;
-  esac
-done
+# for arg in "\$@"; do
+#   case "\$arg" in
+#     /tmp/sccache_nvcc*)
+#       cp "\$arg" /tmp/sccache_nvcc_stuff
+#       ;;
+#   esac
+# done
 
 if [ \$(env -u LD_PRELOAD ps -p \$PPID -o comm=) != sccache ]; then
   exec sccache $(which nvcc) "\$@"
