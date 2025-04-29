@@ -11,10 +11,11 @@ sudo tee /opt/cache/bin/nvcc > /dev/null <<'EOF'
 #!/bin/sh
 echo "\$@" > /tmp/sccache_nvcc_stuff/nvcc_args.txt
 for arg in "$@"; do
-  if [[ $arg == /tmp/sccache_nvcc* ]]; then
-    cp "$arg" /tmp/sccache_nvcc_stuff
-    break
-  fi
+  case "$arg" in
+    /tmp/sccache_nvcc*)
+      cp "$arg" /tmp/sccache_nvcc_stuff
+      ;;
+  esac
 done
 
 if [ \$(env -u LD_PRELOAD ps -p \$PPID -o comm=) != sccache ]; then
@@ -25,6 +26,8 @@ fi
 EOF
 sudo chmod +x /opt/cache/bin/nvcc
 # sudo mv /opt/cache/bin/nvcc /opt/cache/lib/
+
+nvcc --version
 
 # shellcheck source=./common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
