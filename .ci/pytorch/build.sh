@@ -10,11 +10,11 @@ mkdir -p /tmp/sccache_nvcc_stuff
 which nvcc
 sudo tee /opt/cache/bin/nvcc > /dev/null <<EOF
 #!/bin/sh
-echo "\$@" > /tmp/sccache_nvcc_stuff/nvcc_args.txt
-for arg in "$@"; do
-  case "$arg" in
+echo "\$@" >> /tmp/sccache_nvcc_stuff/nvcc_args.txt
+for arg in "\$@"; do
+  case "\$arg" in
     /tmp/sccache_nvcc*)
-      cp "$arg" /tmp/sccache_nvcc_stuff
+      cp "\$arg" /tmp/sccache_nvcc_stuff
       ;;
   esac
 done
