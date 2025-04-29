@@ -16,6 +16,8 @@ for arg in "\$@"; do
     /tmp/sccache_nvcc*)
       cp "\$arg" /tmp/sccache_nvcc_stuff
       ;;
+    *)
+      ;;
   esac
 done
 
