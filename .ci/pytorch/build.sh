@@ -26,8 +26,9 @@ fi
 EOF
 sudo chmod +x /opt/cache/bin/nvcc
 # sudo mv /opt/cache/bin/nvcc /opt/cache/lib/
-
+which nvcc
 nvcc --version
+
 
 # shellcheck source=./common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
