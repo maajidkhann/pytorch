@@ -21,7 +21,7 @@ EOF
 sudo chmod +x /opt/cache/bin/nvcc
 # sudo mv /opt/cache/bin/nvcc /opt/cache/lib/
 
-rm -rf /opt/cache/bin/gcc
+sudo rm -rf /opt/cache/bin/gcc
 which gcc
 
 sudo tee /opt/cache/bin/gcc > /dev/null <<EOF
