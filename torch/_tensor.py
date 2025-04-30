@@ -1115,19 +1115,6 @@ class Tensor(torch._C.TensorBase):
             _C.TensorBase.pow_
         )
 
-    @_handle_torch_function_and_wrap_type_error_to_not_implemented
-    def __rmod__(self, other):
-        return torch.remainder(other, self)
-
-    def __format__(self, format_spec: str) -> str:
-        if has_torch_function_unary(self):
-            return handle_torch_function(Tensor.__format__, (self,), self, format_spec)
-        if self.dim() == 0 and not self.is_meta and type(self) is Tensor:
-            return self.item().__format__(format_spec)
-        return object.__format__(self, format_spec)
-
-    if not TYPE_CHECKING:
-
         @_handle_torch_function_and_wrap_type_error_to_not_implemented
         def __rpow__(self, other):
             return torch.pow(other, self)
@@ -1140,6 +1127,17 @@ class Tensor(torch._C.TensorBase):
         def __rfloordiv__(self, other):
             return torch.floor_divide(other, self)
 
+        @_handle_torch_function_and_wrap_type_error_to_not_implemented
+        def __rmatmul__(self, other):
+            return torch.matmul(other, self)
+
+    # For some reason, moving these functions into the `not TYPE_CHECKING`
+    # block makes `mypy` resolve int % Tensor to a int, which is worse
+    # than resolving to `Any`.
+    @_handle_torch_function_and_wrap_type_error_to_not_implemented
+    def __rmod__(self, other):
+        return torch.remainder(other, self)
+
     @_handle_torch_function_and_wrap_type_error_to_not_implemented
     def __rlshift__(self, other):
         return torch.bitwise_left_shift(other, self)
@@ -1148,15 +1146,16 @@ class Tensor(torch._C.TensorBase):
     def __rrshift__(self, other):
         return torch.bitwise_right_shift(other, self)
 
-    if not TYPE_CHECKING:
-
-        @_handle_torch_function_and_wrap_type_error_to_not_implemented
-        def __rmatmul__(self, other):
-            return torch.matmul(other, self)
-
     __pos__ = _C.TensorBase.positive
     __neg__ = _C.TensorBase.neg
     __abs__ = _C.TensorBase.abs
+
+    def __format__(self, format_spec: str) -> str:
+        if has_torch_function_unary(self):
+            return handle_torch_function(Tensor.__format__, (self,), self, format_spec)
+        if self.dim() == 0 and not self.is_meta and type(self) is Tensor:
+            return self.item().__format__(format_spec)
+        return object.__format__(self, format_spec)
 
     def __len__(self) -> int:
         if has_torch_function_unary(self):
