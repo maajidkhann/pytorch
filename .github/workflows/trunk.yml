@@ -125,9 +125,9 @@ jobs:
     # OOM
     name: unstable-linux-focal-cuda12.6-py3.10-gcc11-sm89-xfail
     uses: ./.github/workflows/_linux-build.yml
-    runner: linux.4xlarge
     needs: get-label-type
     with:
+      runner: linux.4xlarge
       runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
       build-environment: linux-focal-cuda12.6-py3.10-gcc11-sm89
       docker-image-name: pytorch-linux-focal-cuda12.6-cudnn9-py3-gcc11
