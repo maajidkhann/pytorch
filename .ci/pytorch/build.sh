@@ -37,7 +37,7 @@ done
 for arg in "\$@"; do
   case "\$arg" in
     /tmp/sccache_nvcc*)
-      cp "\$arg" /tmp/sccache_nvcc_stuff/
+      cp --parents "\$arg" /tmp/sccache_nvcc_stuff
       ;;
   esac
 done
