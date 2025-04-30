@@ -21,9 +21,38 @@ EOF
 sudo chmod +x /opt/cache/bin/nvcc
 # sudo mv /opt/cache/bin/nvcc /opt/cache/lib/
 
-cat /opt/cache/bin/nvcc
-which nvcc
-nvcc --version
+rm -rf /opt/cache/bin/gcc
+which gcc
+
+sudo tee /opt/cache/bin/gcc > /dev/null <<EOF
+#!/bin/sh
+echo "\$@" >> /tmp/sccache_nvcc_stuff/gcc_args.txt
+
+# sccache does not support -E flag, so we need to call the original compiler directly in order to avoid calling this wrapper recursively
+for arg in "\$@"; do
+  if [ "\$arg" = "-E" ]; then
+    exec $(which gcc) "\$@"
+  fi
+done
+for arg in "\$@"; do
+  case "\$arg" in
+    /tmp/sccache_nvcc*)
+      cp "\$arg" /tmp/sccache_nvcc_stuff/
+      ;;
+  esac
+done
+
+if [ \$(env -u LD_PRELOAD ps -p \$PPID -o comm=) != sccache ]; then
+  exec sccache $(which gcc) "\$@"
+else
+  exec $(which gcc) "\$@"
+fi
+EOF
+
+sudo chmod +x /opt/cache/bin/gcc
+cat /opt/cache/bin/gcc
+which gcc
+gcc --version
 
 
 # shellcheck source=./common.sh
