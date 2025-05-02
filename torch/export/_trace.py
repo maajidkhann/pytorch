@@ -71,7 +71,11 @@ from torch._logging import dtrace_structured
 from torch._subclasses.fake_tensor import FakeTensorMode
 from torch._utils_internal import log_export_usage
 from torch.export._unlift import _check_input_constraints_pre_hook
-from torch.export.dynamic_shapes import _check_dynamic_shapes, _combine_args
+from torch.export.dynamic_shapes import (
+    _check_dynamic_shapes,
+    _combine_args,
+    _IntWrapper,
+)
 from torch.export.exported_program import OutputKind
 from torch.fx.experimental.proxy_tensor import (
     get_proxy_slot,
@@ -226,27 +230,51 @@ def _rewrite_tracepoint_node(gm: torch.fx.GraphModule):
                     gm.graph.erase_node(node)
 
 
+def detect_shape_env(inputs: Any = None):
+    shape_envs = []
+
+    for i, flat_input in enumerate(inputs):
+        if isinstance(flat_input, torch.SymInt):
+            shape_envs.append((flat_input.node.shape_env, "symint input", i))
+
+    if shape_envs:
+        shape_env, desc1, i1 = shape_envs[0]
+        for m, desc2, i2 in shape_envs[1:]:
+            assert shape_env is m, (
+                f"shape env ({shape_env}) from {desc1} {i1} doesn't match mode ({m}) from {desc2} {i2}\n\n"
+                f"shape env from {desc1} {i1} allocated at:\n{shape_env.stack}\n"
+                f"shape env from {desc2} {i2} allocated at:\n{m.stack}"
+            )
+        return shape_env
+    else:
+        return None
+
+
 def _extract_fake_inputs(gm, args, kwargs):
     """
     Given a graph module, extract fakified input tensors from the metadata of
     its placeholders, and map them to the structure of given args and kwargs.
     Also return the fake mode used to fakify those inputs.
     """
-
-    fake_inps: list[torch.Tensor] = []
-    fake_vals: list[torch.Tensor] = []
+    fake_inps: list[Any] = []
+    fake_vals: list[Any] = []
     for node in gm.graph.nodes:
-        if node.op == "placeholder" and "val" in node.meta:
-            fake_val = node.meta["val"]
-            if fake_val is not None and isinstance(fake_val, torch.Tensor):
-                fake_inps.append(fake_val)
-        elif "example_value" in node.meta:
-            fake_val = node.meta["example_value"]
-            if fake_val is not None and isinstance(fake_val, torch.Tensor):
-                fake_vals.append(fake_val)
+        if node.op == "placeholder":
+            fake_inps.append(node.meta.get("val"))
+        else:
+            fake_vals.append(node.meta.get("example_value"))
 
-    if detected_fake_mode := detect_fake_mode(fake_inps + fake_vals):
+    detected_fake_mode = detect_fake_mode(fake_inps + fake_vals)
+    detected_shape_env = detect_shape_env(fake_inps + fake_vals)
+
+    if detected_fake_mode:
+        if detected_shape_env:
+            assert (
+                detected_shape_env is detected_fake_mode.shape_env
+            ), "Detected shape env does not match fake mode's shape env"
         fake_mode = detected_fake_mode
+    elif detected_shape_env:
+        fake_mode = FakeTensorMode(shape_env=detected_shape_env, export=True)
     else:
         fake_mode = FakeTensorMode(shape_env=ShapeEnv(), export=True)
 
@@ -254,12 +282,12 @@ def _extract_fake_inputs(gm, args, kwargs):
 
     def lookup_fake(x):
         nonlocal count
-        val = fake_inps[count]
+        val = fake_inps[count] if isinstance(x, (int, torch.Tensor)) else x
         count += 1
         return val
 
-    fake_args = pytree.tree_map_only(torch.Tensor, lookup_fake, args)
-    fake_kwargs = pytree.tree_map_only(torch.Tensor, lookup_fake, kwargs)
+    fake_args = pytree.tree_map(lookup_fake, args)
+    fake_kwargs = pytree.tree_map(lookup_fake, kwargs)
 
     return fake_args, fake_kwargs, fake_mode
 
@@ -736,6 +764,11 @@ def _export_to_torch_ir(
         )
 
     kwargs = kwargs or {}
+
+    # Map ints to a wrapper structure to help us mark it as dynamic, if it is
+    # dynamic. We will unwrap ints in fakify later.
+    args, kwargs = pytree.tree_map_only(int, lambda a: _IntWrapper(a), (args, kwargs))
+
     combined_args = _combine_args(f, args, kwargs)
     _check_dynamic_shapes(combined_args, dynamic_shapes)
     with torch._dynamo.config.patch(dataclasses.asdict(DEFAULT_EXPORT_DYNAMO_CONFIG)):

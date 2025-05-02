@@ -68,6 +68,8 @@ from torch._subclasses.fake_tensor import unset_fake_temporarily
 from torch._utils_internal import justknobs_check, log_export_usage
 from torch.export.dynamic_shapes import (
     _combine_args,
+    _DimHintType,
+    _IntWrapper,
     _process_dynamic_shapes,
     _RelaxedConstraint,
 )
@@ -1175,6 +1177,11 @@ class FlattenInputOutputSignature(torch.fx.Transformer):
                             constraint_sizes=[None] * len(flat_args[i].shape),
                         ),
                     )
+                elif isinstance(flat_args[i], _IntWrapper):
+                    arg.node.meta["val"] = flat_args[i].val
+                else:
+                    arg.node.meta["val"] = flat_args[i]
+
             self.new_args.append(arg)
         self.old_args_gen = (self.new_args[i] for i in matched_input_elements_positions)
         self.matched_output_elements_positions = matched_output_elements_positions
@@ -1314,6 +1321,7 @@ def rewrite_signature(
             torch.SymFloat,
             torch.SymBool,
             torch._C.ScriptObject,
+            _IntWrapper,
         ] + list(common_constant_types)
 
         def is_supported_type(val):
@@ -1576,6 +1584,20 @@ def export(
     def inner(*args, **kwargs):
         combined_args = _combine_args(_f, args, kwargs)
         constraints = _process_dynamic_shapes(combined_args, dynamic_shapes)
+
+        # Unwrap static ints -- in the case where we have an empty graph
+        # containing just integer computation, dynamo will run its generated
+        # bytecode with these args/kwargs, which will error because we cannot
+        # directly apply int operations on IntWrapper. So we will just unwrap
+        # them here.
+        args, kwargs = pytree.tree_map_only(
+            _IntWrapper,
+            lambda a: a.val
+            if a.dynamism is None or a.dynamism.type == _DimHintType.STATIC
+            else a,
+            (args, kwargs),
+        )
+
         f = _f
         specialize_float = _specialize_float
         assume_static_by_default = _assume_static_by_default
@@ -1666,8 +1688,30 @@ def export(
                             value, static_shapes=True
                         )
 
-                    fake_graph_inputs = pytree.tree_map(
-                        ambient_fake_mode.from_tensor, graph_inputs
+                    def fakify_with_ambient(path, t):
+                        if isinstance(t, torch.Tensor):
+                            return ambient_fake_mode.from_tensor(t, static_shapes=True)
+                        elif isinstance(t, _IntWrapper):
+                            if t.dynamism is not None and isinstance(t.dynamism, _DimHint) and t.dynamism.type in (
+                                _DimHintType.DYNAMIC,
+                                _DimHintType.AUTO,
+                            ):  # type: ignore[union-attr]
+                                from torch._export.non_strict_utils import (
+                                    key_path_to_source,
+                                )
+
+                                source = key_path_to_source(path)
+                                symint = ambient_fake_mode.shape_env.create_unspecified_symint_and_symbol(  # type: ignore[union-attr]
+                                    t.val, source, DimDynamic.DYNAMIC
+                                )
+                                return symint
+                            else:
+                                return t.val
+                        else:
+                            return t
+
+                    fake_graph_inputs = pytree.tree_map_with_path(
+                        fakify_with_ambient, graph_inputs
                     )
                     graph_captured_result = torch.func.functional_call(
                         graph, fake_params_buffers, fake_graph_inputs
@@ -1803,7 +1847,10 @@ def export(
                 check_signature_rewritable(graph)
 
         # NB: This is mostly hitting the cache; Dynamo already converted these
-        example_fake_inputs = [fake_mode.from_tensor(t) for t in example_inputs]
+        example_fake_inputs = [
+            fake_mode.from_tensor(t) if isinstance(t, torch.Tensor) else t
+            for t in example_inputs
+        ]
 
         if aten_graph:
             # Running graph with interpreter is needed for propagating the stack_trace
