@@ -6032,6 +6032,7 @@ class SubgraphBuffer(ExternKernel):
         self.subgraph = V.graph.make_subgraph(
             self.gm, self.example_inputs, subgraph_name
         )
+
         import torch._inductor.config as inductor_config
 
         with V.set_graph_handler(self.subgraph):
@@ -6049,11 +6050,9 @@ class SubgraphBuffer(ExternKernel):
                 self.graph = graph
                 self.name = graph.name
 
-        outer_inputs = [t.codegen_reference() for t in self.inputs]
-
         wrapper.codegen_subgraph(
             CodegenGraph(self.subgraph),
-            outer_inputs,
+            [*[buffer.get_name() for buffer in self.inputs]],
             [self.name],
         )
 
@@ -7461,9 +7460,9 @@ class InvokeSubgraph(ExternKernel):
         V.graph.register_operation(self)
 
     @classmethod
-    def create(cls, subgraph: Subgraph, operands):  # type: ignore[no-untyped-def]
+    def create(cls, subgraph: Subgraph, *operands):  # type: ignore[no-untyped-def]
         # TODO(anijain2305) - Support sym expr as operands in future.
-        fx_operands = V.graph.current_node.args[-1]
+        fx_operands = V.graph.current_node.args[2:]
         fake_operands = [x.meta["val"] for x in fx_operands]  # type: ignore[union-attr]
 
         # Realize the inputs. Also intermediates can have different strides than
