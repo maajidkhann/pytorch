@@ -15872,5 +15872,18 @@
   dispatch:
     CPU: extension_cpp::mymul_cpu
 
+- func: aspt_inspect(Tensor dense) -> Tensor[]
+  variants: function
+  dispatch:
+    CPU: aspt_inspect
+
+- func: aspt_execute(Tensor mcsr_e, Tensor mcsr_cnt, Tensor mcsr_chk, Tensor row_ptrs, Tensor col_idx, Tensor values, Tensor avg_tensor, Tensor vari_tensor, Tensor nThread_tensor, Tensor vin) -> Tensor
+  variants: function
+  dispatch:
+    CPU: aspt_execute
+
+
+
+
 
 
