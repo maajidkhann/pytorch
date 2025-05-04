@@ -5,7 +5,14 @@
 #include <torch/csrc/inductor/aoti_torch/oss_proxy_executor.h>
 #include <torch/csrc/inductor/aoti_torch/tensor_converter.h>
 
+#if __has_include(<filesystem>)
 #include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std {
+using filesystem = std::experimental::filesystem;
+}
+#endif
 
 namespace torch::inductor {
 

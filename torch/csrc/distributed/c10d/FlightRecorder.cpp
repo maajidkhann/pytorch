@@ -3,10 +3,17 @@
 
 #include <cuda_runtime.h>
 #include <nlohmann/json.hpp>
-#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <vector>
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std {
+using filesystem = std::experimental::filesystem;
+}
+#endif
 
 #include <c10/util/WaitCounter.h>
 

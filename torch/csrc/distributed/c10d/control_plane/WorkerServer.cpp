@@ -1,6 +1,13 @@
-#include <filesystem>
 #include <sstream>
 #include <unordered_map>
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std {
+using filesystem = std::experimental::filesystem;
+}
+#endif
 
 #include <ATen/core/interned_strings.h>
 #include <c10/util/thread_name.h>

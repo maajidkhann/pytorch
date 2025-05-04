@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <filesystem>
 #include <optional>
 
 #include <torch/csrc/inductor/aoti_runtime/interface.h>

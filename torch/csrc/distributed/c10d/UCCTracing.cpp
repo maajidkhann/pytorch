@@ -10,8 +10,15 @@
 #include <sys/stat.h>
 #include <cstdlib>
 #include <ctime>
-#include <filesystem>
 #include <fstream>
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std {
+using filesystem = std::experimental::filesystem;
+}
+#endif
 
 namespace c10d {
 

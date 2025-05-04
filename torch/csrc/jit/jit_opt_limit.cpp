@@ -1,5 +1,3 @@
-#include <cstdlib>
-#include <filesystem>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -10,6 +8,15 @@
 #include <c10/util/env.h>
 #include <torch/csrc/jit/api/function_impl.h>
 #include <torch/csrc/jit/jit_opt_limit.h>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std {
+using filesystem = std::experimental::filesystem;
+}
+#endif
 
 namespace torch::jit {
 
