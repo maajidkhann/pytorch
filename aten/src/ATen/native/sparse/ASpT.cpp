@@ -63,6 +63,7 @@ void execute(const InspectorMetadata<float>& meta, int nr0, int nc, int sc, floa
             }
         }
     }
+    //std::cout << "@@@@@@Entered Execute!!!" << std::endl;
 }
 
 std::vector<Tensor> aspt_inspect(const Tensor& dense) {
@@ -90,6 +91,7 @@ std::vector<Tensor> aspt_inspect(const Tensor& dense) {
     Tensor avg_tensor     = at::tensor({meta.avg}, opts_f32);
     Tensor vari_tensor    = at::tensor({meta.vari}, opts_f32);
     Tensor nThread_tensor = at::tensor({meta.nThread}, opts_i32);
+    //std::cout << "@@@@@@Entered aspt_inspect!!!" << std::endl;
 
     return {mcsr_e, mcsr_cnt, mcsr_chk, row_ptrs, col_idx, values, avg_tensor, vari_tensor, nThread_tensor};
 }
@@ -125,6 +127,7 @@ Tensor aspt_execute(
     meta.nr = nr;
 
     execute(meta, nr, vin.size(0), sc, vin.data_ptr<float>(), vout.data_ptr<float>());
+    //std::cout << "@@@@@@Entered aspt_execute!!!" << std::endl;
     return vout;
 }
 
