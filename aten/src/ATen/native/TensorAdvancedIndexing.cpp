@@ -133,10 +133,6 @@
 #include <ATen/ops/zeros_like.h>
 #endif
 
-#ifdef USE_FBGEMM
-#include <fbgemm/Utils.h>
-#endif
-
 #include <c10/util/Unroll.h>
 #include <c10/util/irange.h>
 
@@ -2018,13 +2014,6 @@ static bool can_use_expanded_index_path(
     const Tensor& index,
     const Tensor& src,
     bool is_scatter_like) {
-#ifdef USE_FBGEMM
-  if (!fbgemm::is_radix_sort_accelerated_with_openmp()) {
-    return false;
-  }
-#else
-  return false;
-#endif
 
   if (!self.device().is_cpu()) {
     return false;
